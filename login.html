@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediKiosk Enterprise - Ministry of AYUSH & ABDM</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6.5.1 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Tesseract.js (Client-side OCR) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- html5-qrcode (Live Camera Scanner) -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49',
+            },
+            ayush: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#16a34a',
+              600: '#15803d',
+              700: '#166534',
+            }
+          },
+          boxShadow: {
+            'glow-brand': '0 0 20px -5px rgba(2, 132, 199, 0.35)',
+            'kiosk': '0 20px 50px -10px rgba(15, 23, 42, 0.35)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .pulse-wave { animation: wave 1.2s ease-in-out infinite alternate; }
+    @keyframes wave {
+      0% { transform: scaleY(0.3); opacity: 0.5; }
+      100% { transform: scaleY(1.3); opacity: 1; }
+    }
+
+    .ticket-cut {
+      position: relative;
+      background: #ffffff;
+    }
+    .ticket-cut::before, .ticket-cut::after {
+      content: '';
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: #f8fafc;
+      border-radius: 50%;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .ticket-cut::before { left: -13px; }
+    .ticket-cut::after { right: -13px; }
+
+    /* Senior Citizen Accessibility Overrides */
+    body.senior-mode {
+      font-size: 112% !important;
+    }
+    body.senior-mode .btn-touch {
+      min-height: 56px !important;
+      font-size: 1.05rem !important;
+      border-width: 2.5px !important;
+    }
+
+    #reader { border: none !important; width: 100% !important; }
+    #reader video { border-radius: 12px; object-fit: cover; }
+  </style>
+</head>
+<body id="app-body" class="bg-slate-950 min-h-screen flex flex-col items-center justify-start p-2 sm:p-4 font-sans text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Top Global Header & Mode Bar -->
+  <header class="w-full max-w-6xl mb-2.5 flex items-center justify-between bg-slate-900/95 border border-slate-800 p-2.5 rounded-2xl shadow-lg backdrop-blur-md">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-ayush-600 flex items-center justify-center text-white text-sm font-black shadow-md">
+        <i class="fa-solid fa-hospital-user"></i>
+      </div>
+      <div>
+        <h1 class="text-xs font-black text-white tracking-wide uppercase">MediKiosk <span class="text-emerald-400 font-mono text-[10px]">v7.5-Unified</span></h1>
+        <p class="text-[10px] text-slate-400 font-medium">Ministry of AYUSH • ABDM M3 / Universal Triage</p>
+      </div>
+    </div>
+
+    <!-- Quick Navigation Toggles -->
+    <div class="flex items-center gap-2">
+      <!-- Senior Mode Toggle -->
+      <button id="senior-toggle-btn" onclick="toggleSeniorCitizenMode()" class="px-2.5 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-md">
+        <i class="fa-solid fa-glasses"></i>
+        <span id="senior-btn-label">Senior Mode: OFF</span>
+      </button>
+
+      <!-- View Selector -->
+      <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
+        <button id="tab-btn-kiosk" onclick="switchMainView('kiosk')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-600 text-white shadow-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-mobile-screen"></i> Patient Kiosk
+        </button>
+        <button id="tab-btn-doctor" onclick="switchMainView('doctor')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white flex items-center gap-1.5">
+          <i class="fa-solid fa-user-doctor"></i> Doctor AI Copilot
+        </button>
+        <button id="tab-btn-admin" onclick="switchMainView('admin')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white flex items-center gap-1.5">
+          <i class="fa-solid fa-chart-pie"></i> Admin Analytics
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- ======================= 1. PATIENT KIOSK VIEW =========================== -->
+  <!-- ========================================================================= -->
+  <main id="view-patient-kiosk" class="w-full flex justify-center">
+    <div class="relative w-full max-w-[430px] h-[850px] max-h-[95vh] bg-slate-50 rounded-[40px] shadow-kiosk overflow-hidden border-[8px] border-slate-900 flex flex-col justify-between ring-1 ring-white/10">
+      
+      <!-- Top Status Header -->
+      <div class="bg-slate-900 text-white px-5 pt-2.5 pb-2 flex justify-between items-center text-[10px] font-semibold z-30">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="tracking-tight text-slate-300 font-bold">ABDM KIOSK #ND-01</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="requestStaffAssistance()" class="bg-red-600/90 hover:bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md flex items-center gap-1">
+            <i class="fa-solid fa-bell"></i> Need Help?
+          </button>
+          <span class="text-white font-mono font-bold" id="live-time">09:41</span>
+        </div>
+      </div>
+
+      <!-- Kiosk Main Viewport -->
+      <div id="screen-viewport" class="flex-1 overflow-y-auto hide-scrollbar relative p-4 flex flex-col justify-between bg-gradient-to-b from-slate-50 via-slate-50 to-brand-50/20">
+        
+        <!-- ================= SCREEN 1: LANDING PAGE ================= -->
+        <div id="screen-landing" class="screen-container flex-1 flex flex-col items-center justify-between text-center py-2">
+          <div class="w-full flex justify-between items-center text-[9px] font-bold">
+            <span class="text-slate-400 uppercase tracking-widest">National Health Mission</span>
+            <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Kiosk Ready</span>
+          </div>
+
+          <div class="flex flex-col items-center my-auto">
+            <div class="w-20 h-20 bg-gradient-to-br from-brand-600 via-indigo-700 to-ayush-600 rounded-3xl flex items-center justify-center text-white text-4xl shadow-glow-brand mb-3">
+              <i class="fa-solid fa-hospital-user"></i>
+            </div>
+            <h1 class="text-2xl font-black tracking-tight text-slate-900 uppercase">MediKiosk</h1>
+            <p class="text-[10px] font-extrabold text-brand-600 uppercase tracking-widest mt-1 bg-brand-50 px-3 py-0.5 rounded-full border border-brand-200">MINISTRY OF AYUSH</p>
+            <p class="text-[11px] text-slate-500 max-w-[260px] mt-2.5 font-medium leading-relaxed">
+              Smart Multilingual OPD Registration, Voice Clinical Triage & Dashavidha AYUSH Assessment
+            </p>
+
+            <div class="grid grid-cols-2 gap-2 mt-4 w-full text-left">
+              <div class="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-language text-brand-600 text-base"></i>
+                <div>
+                  <p class="text-[10px] font-bold text-slate-800">8 Indian Languages</p>
+                  <p class="text-[9px] text-slate-400">Audio + Voice AI</p>
+                </div>
+              </div>
+              <div class="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-clock-rotate-left text-emerald-600 text-base"></i>
+                <div>
+                  <p class="text-[10px] font-bold text-slate-800">Zero Wait Token</p>
+                  <p class="text-[9px] text-slate-400">Fast-Track Priority</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full space-y-2">
+            <button onclick="navigateTo('screen-language')" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black rounded-2xl shadow-md transition text-xs flex items-center justify-center gap-2">
+              <span>Start Registration / शुरू करें</span>
+              <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </button>
+            <div class="flex justify-center items-center gap-1.5">
+              <span class="text-[8px] font-bold text-slate-500 border border-slate-200 bg-white px-2 py-0.5 rounded">ABDM Compliant</span>
+              <span class="text-[8px] font-bold text-slate-500 border border-slate-200 bg-white px-2 py-0.5 rounded">AyurGrid</span>
+              <span class="text-[8px] font-bold text-slate-500 border border-slate-200 bg-white px-2 py-0.5 rounded">FHIR R4</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= SCREEN 2: LANGUAGE SELECTION ================= -->
+        <div id="screen-language" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <button onclick="navigateTo('screen-landing')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900">Select Preferred Language</h2>
+                <p class="text-[10px] text-slate-500">अपनी पसंदीदा भाषा का चयन करें</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-3" id="lang-button-list">
+              <button onclick="setAppLanguage('en')" class="btn-touch p-3 bg-white border-2 border-brand-500 bg-brand-50/40 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">English</p>
+                  <p class="text-[9px] text-slate-500">Default</p>
+                </div>
+                <i class="fa-solid fa-circle-check text-brand-600 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('hi')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">हिंदी</p>
+                  <p class="text-[9px] text-slate-500">Hindi</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('mr')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">मराठी</p>
+                  <p class="text-[9px] text-slate-500">Marathi</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('gu')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">ગુજરાતી</p>
+                  <p class="text-[9px] text-slate-500">Gujarati</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('ta')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">தமிழ்</p>
+                  <p class="text-[9px] text-slate-500">Tamil</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('te')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">తెలుగు</p>
+                  <p class="text-[9px] text-slate-500">Telugu</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('bn')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">বাংলা</p>
+                  <p class="text-[9px] text-slate-500">Bengali</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+              <button onclick="setAppLanguage('pa')" class="btn-touch p-3 bg-white border border-slate-200 hover:border-brand-500 rounded-2xl flex items-center justify-between shadow-sm active:scale-95 transition text-left">
+                <div>
+                  <p class="text-xs font-black text-slate-900">ਪੰਜਾਬੀ</p>
+                  <p class="text-[9px] text-slate-500">Punjabi</p>
+                </div>
+                <i class="fa-regular fa-circle text-slate-300 text-sm"></i>
+              </button>
+            </div>
+          </div>
+
+          <button onclick="navigateTo('screen-login-card')" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-black rounded-2xl shadow-md text-xs">
+            Continue / आगे बढ़ें
+          </button>
+        </div>
+
+        <!-- ================= SCREEN 3: INTEGRATED ABHA DIGITAL IDENTITY CARD (UPDATED) ================= -->
+        <div id="screen-login-card" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <!-- Header with Back Button -->
+            <div class="flex items-center gap-2 mb-2">
+              <button onclick="navigateTo('screen-language')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs shadow-sm hover:bg-slate-100"><i class="fa-solid fa-arrow-left"></i></button>
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900" id="pageTitle">ABHA Digital Identity</h2>
+                <p class="text-[10px] text-slate-500" id="pageSubTitle">Login or create your ABHA account</p>
+              </div>
+            </div>
+
+            <!-- Identity Card Container -->
+            <div class="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 border border-brand-100">
+                  🏥
+                </div>
+                <div>
+                  <h3 class="text-xs font-extrabold text-slate-900" id="cardTitle">Welcome to ABHA</h3>
+                  <p class="text-[10px] text-slate-500 leading-tight mt-0.5" id="cardSub">
+                    Use your ABHA Digital Identity to securely access and manage health records.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Tabs Container -->
+              <div class="flex bg-slate-100 p-1 rounded-xl gap-1 text-[11px] font-bold" id="tabContainer">
+                <button class="flex-1 py-1.5 rounded-lg transition-all bg-white text-brand-700 shadow-sm" id="tab-login-btn" onclick="showLoginTab()">Login with ABHA</button>
+                <button class="flex-1 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-800" id="tab-create-btn" onclick="showCreateTab()">Create ABHA</button>
+              </div>
+
+              <!-- 1. LOGIN FORM -->
+              <div id="loginForm" class="space-y-2.5">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 mb-1">ABHA Number / ABHA Address</label>
+                  <input type="text" id="input-abha-login" placeholder="e.g. 91-4521-8840-1234 or name@abdm" value="91-4521-8840-1234" class="w-full h-10 px-3 border border-slate-300 rounded-xl text-xs bg-slate-50 font-mono font-bold text-slate-800 focus:bg-white focus:border-brand-600 focus:outline-none" />
+                </div>
+                <div class="flex justify-between items-center text-[10px]">
+                  <span class="text-slate-400">Linked OTP authentication</span>
+                  <span class="font-bold text-brand-600 hover:underline cursor-pointer" onclick="showAadhaarLoginTab()">Forgot details? Login with Aadhaar</span>
+                </div>
+                <button class="btn-touch w-full py-2.5 bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white text-xs font-bold rounded-xl shadow-md transition" onclick="loginWithAbha()">
+                  Continue with ABHA
+                </button>
+              </div>
+
+              <!-- 2. CREATE FORM -->
+              <div id="createForm" style="display:none;" class="space-y-2.5">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 mb-1">Aadhaar Number</label>
+                  <input type="password" maxlength="12" placeholder="Enter 12-digit Aadhaar Number" class="w-full h-10 px-3 border border-slate-300 rounded-xl text-xs bg-slate-50 font-mono font-bold text-slate-800 focus:bg-white focus:border-brand-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 mb-1">Mobile Number</label>
+                  <input type="tel" maxlength="10" placeholder="Enter 10-digit mobile number" class="w-full h-10 px-3 border border-slate-300 rounded-xl text-xs bg-slate-50 font-mono font-bold text-slate-800 focus:bg-white focus:border-brand-600 focus:outline-none" />
+                </div>
+                <button class="btn-touch w-full py-2.5 bg-gradient-to-r from-ayush-600 to-ayush-700 hover:from-ayush-700 hover:to-ayush-800 text-white text-xs font-bold rounded-xl shadow-md transition" onclick="createABHA()">
+                  Create New ABHA & Proceed
+                </button>
+              </div>
+
+              <!-- 3. AADHAAR RECOVERY / LOGIN FORM -->
+              <div id="aadhaarLoginForm" style="display:none;" class="space-y-2.5">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 mb-1">Aadhaar Number</label>
+                  <input type="password" maxlength="12" placeholder="Enter 12-digit Aadhaar Number" class="w-full h-10 px-3 border border-slate-300 rounded-xl text-xs bg-slate-50 font-mono font-bold text-slate-800 focus:bg-white focus:border-brand-600 focus:outline-none" />
+                </div>
+                <div class="text-[10px] text-brand-600 font-bold hover:underline cursor-pointer" onclick="showLoginTab()">
+                  ← Back to ABHA Login
+                </div>
+                <button class="btn-touch w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-md transition" onclick="sendAadhaarOtp()">
+                  Send Aadhaar OTP
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Persona / Guest Options -->
+          <div class="space-y-2 pt-2 border-t border-slate-200">
+            <button onclick="startOnboarding('guest')" class="btn-touch w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 border border-slate-300">
+              <i class="fa-solid fa-user-plus"></i> Continue Without ABHA (Guest Fast-Track)
+            </button>
+            <button onclick="setUserRole('caregiver')" class="btn-touch w-full py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold rounded-2xl text-[11px] flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-hands-holding-child"></i> Caregiver Mode (I am Helping Someone)
+            </button>
+          </div>
+        </div>
+
+        <!-- ================= SCREEN 4: PATIENT PROFILE DATA & GUEST REGISTRATION ================= -->
+        <div id="screen-patient-profile" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <button onclick="navigateTo('screen-login-card')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900">Patient Details Verification</h2>
+                <p class="text-[10px] text-slate-500">Confirm demographics for clinical triage</p>
+              </div>
+            </div>
+
+            <!-- Caregiver Banner if active -->
+            <div id="caregiver-badge-banner" class="hidden p-2 bg-indigo-50 border border-indigo-200 rounded-xl mb-2 text-xs flex items-center gap-2">
+              <i class="fa-solid fa-person-cane text-indigo-600"></i>
+              <span class="text-[11px] font-bold text-indigo-800">Caregiver Assisted Mode: Entering details for patient</span>
+            </div>
+
+            <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2 text-xs">
+              <div id="profile-abha-display-container">
+                <label class="block text-[11px] font-bold text-slate-700">ABHA Identifier / Status</label>
+                <input id="patient-abha-input" type="text" value="91-4521-8840-1234" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800 tracking-wider focus:outline-none focus:border-brand-600" />
+              </div>
+              
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700">Patient Full Name</label>
+                <input id="patient-name-input" type="text" value="Rajesh Kumar" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:border-brand-600" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-600">Age</label>
+                  <input id="patient-age-input" type="number" value="48" class="w-full p-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-600">Gender</label>
+                  <select id="patient-gender-input" class="w-full p-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveProfileAndNext()" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs transition">Confirm & Choose Medical Stream</button>
+        </div>
+
+        <!-- ================= SCREEN 5: TREATMENT STREAM (AYUSH VS ALLOPATHY) ================= -->
+        <div id="screen-system-choice" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <button onclick="navigateTo('screen-patient-profile')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-sm font-extrabold text-slate-900">Choose Medical Stream</h2>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-3 text-center">Select clinical methodology for evaluation:</p>
+
+            <div class="space-y-3">
+              <div onclick="setTreatmentStream('ayush')" id="card-ayush" class="btn-touch p-3.5 bg-white border-2 border-brand-500 bg-brand-50/50 rounded-2xl cursor-pointer shadow-sm flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center text-xl flex-shrink-0">
+                  <i class="fa-solid fa-spa"></i>
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <h3 class="font-extrabold text-xs text-slate-900">AYUSH Comprehensive Flow</h3>
+                    <i class="fa-solid fa-circle-check text-brand-600 text-base" id="check-ayush"></i>
+                  </div>
+                  <p class="text-[10px] text-slate-500 mt-0.5">Prakriti &rarr; Agni &rarr; Koshtha &rarr; Full Dashavidha Pariksha.</p>
+                </div>
+              </div>
+
+              <div onclick="setTreatmentStream('allopathy')" id="card-allopathy" class="btn-touch p-3.5 bg-white border-2 border-slate-200 rounded-2xl cursor-pointer shadow-sm flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl flex-shrink-0">
+                  <i class="fa-solid fa-pills"></i>
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <h3 class="font-extrabold text-xs text-slate-900">Allopathy (Conventional)</h3>
+                    <i class="fa-regular fa-circle text-slate-300 text-base" id="check-allopathy"></i>
+                  </div>
+                  <p class="text-[10px] text-slate-500 mt-0.5">Evidence-based clinical intake & emergency red flag triage.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="navigateTo('screen-interview-main')" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs">Proceed to Dynamic Intake</button>
+        </div>
+
+        <!-- ================= SCREEN 6: DYNAMIC ADAPTIVE INTERVIEW & RED FLAG ================= -->
+        <div id="screen-interview-main" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-system-choice')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <span class="text-[10px] font-extrabold text-brand-700 bg-brand-100 px-2.5 py-0.5 rounded-full" id="interview-phase-badge">Adaptive SOCRATES</span>
+              <button onclick="triggerVoicePrompt()" class="w-7 h-7 rounded-xl bg-brand-50 text-brand-600 border border-brand-200 flex items-center justify-center text-xs" title="Read Question"><i class="fa-solid fa-volume-high"></i></button>
+            </div>
+
+            <!-- STATIC MINIMAL RED FLAG BANNER -->
+            <div id="minimal-redflag-banner" class="hidden mb-2.5 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-exclamation text-rose-600 text-base mt-0.5"></i>
+              <div class="flex-1">
+                <p class="font-black text-[11px] text-rose-800 uppercase tracking-wide">Clinical Notice: Immediate Medical Attention Suggested</p>
+                <p class="text-[10px] text-rose-700 mt-0.5" id="redflag-inline-msg">Reported chest tightness with radiating pain is flagged for Priority 1 triage.</p>
+              </div>
+            </div>
+
+            <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm mb-2.5">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[10px] font-bold text-brand-600 uppercase tracking-wider" id="interview-step-badge">Question 1</span>
+                <span id="voice-status-indicator" class="text-[9px] font-bold text-slate-400">Ready</span>
+              </div>
+              <h3 id="current-question-title" class="text-xs font-black text-slate-900 leading-snug">What is your primary medical concern today?</h3>
+              
+              <div class="mt-2 flex items-center gap-2">
+                <button id="btn-mic" onclick="toggleSpeechRecognition()" class="btn-touch flex-1 py-2 bg-brand-50 hover:bg-brand-100 border border-brand-300 text-brand-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition active:scale-95 shadow-sm">
+                  <i class="fa-solid fa-microphone text-brand-600 text-base" id="mic-icon"></i>
+                  <span id="mic-text">Tap to Speak (Voice AI)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Dynamic Answer Option Cards -->
+            <div id="dynamic-answers-container" class="grid grid-cols-2 gap-2 text-xs font-bold mb-2"></div>
+
+            <div class="relative flex items-center mt-2">
+              <input id="user-free-input" type="text" placeholder="Or type your symptoms here..." class="w-full p-2.5 pr-10 text-xs bg-white border border-slate-300 rounded-xl focus:border-brand-600 focus:outline-none font-medium" />
+              <button onclick="handleCustomAnswerSubmit()" class="absolute right-1.5 w-7 h-7 bg-brand-600 text-white rounded-lg flex items-center justify-center text-xs">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center pt-2 border-t border-slate-200">
+            <span class="text-[10px] text-slate-400 font-bold" id="clinical-path-tracker">Engine: SOCRATES + NLP</span>
+            <button onclick="proceedFromInterviewToNext()" class="py-2 px-4 bg-brand-600 text-white rounded-xl text-xs font-bold">Skip / Continue</button>
+          </div>
+        </div>
+
+        <!-- ================= SCREEN 7: ALLERGIES, SURGICAL & PERSONAL HISTORY ================= -->
+        <div id="screen-extended-history" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-interview-main')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">Allergy, Surgical & Personal</h2>
+              <div class="w-7"></div>
+            </div>
+
+            <div class="space-y-2 max-h-[460px] overflow-y-auto hide-scrollbar text-xs">
+              <!-- Allergy Module -->
+              <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+                <p class="text-[10px] font-bold text-rose-700 uppercase tracking-wide flex items-center gap-1">
+                  <i class="fa-solid fa-hand-dots"></i> 1. Allergy History
+                </p>
+                <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                  <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                    <input type="checkbox" value="Penicillin Allergy" class="allergy-checkbox rounded text-brand-600" checked />
+                    <span>Penicillin Allergy</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                    <input type="checkbox" value="Sulfa Drugs Allergy" class="allergy-checkbox rounded text-brand-600" />
+                    <span>Sulfa Drugs</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                    <input type="checkbox" value="Food Allergy" class="allergy-checkbox rounded text-brand-600" />
+                    <span>Food Allergy</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                    <input type="checkbox" value="No Known Drug Allergies (NKDA)" class="allergy-checkbox rounded text-brand-600" />
+                    <span>No Known Allergies</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Past Surgical -->
+              <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+                <p class="text-[10px] font-bold text-brand-700 uppercase tracking-wide flex items-center gap-1">
+                  <i class="fa-solid fa-scissors"></i> 2. Past Surgical History
+                </p>
+                <input type="text" id="patient-surgeries" value="Appendectomy (2022), Cataract Surgery (2023)" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800" />
+              </div>
+
+              <!-- Personal Lifestyle -->
+              <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+                <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1">
+                  <i class="fa-solid fa-heart-pulse"></i> 3. Personal History & Lifestyle
+                </p>
+                <div class="grid grid-cols-2 gap-2 text-[10px]">
+                  <div>
+                    <label class="block text-slate-500 font-bold mb-0.5">Diet</label>
+                    <select id="lifestyle-diet" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800">
+                      <option value="Vegetarian Diet">Vegetarian</option>
+                      <option value="Non-Vegetarian Diet">Non-Vegetarian</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-slate-500 font-bold mb-0.5">Sleep</label>
+                    <select id="lifestyle-sleep" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800">
+                      <option value="Sleeps 6-7 Hours Daily">6 - 7 Hours</option>
+                      <option value="Sleeps <5 Hours (Disturbed)">Less than 5 Hours</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveExtendedHistoryAndNext()" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs">Save & Proceed to ROS</button>
+        </div>
+
+        <!-- ================= SCREEN 8: REVIEW OF SYSTEMS (ROS) & FAMILY HISTORY ================= -->
+        <div id="screen-ros-family" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-extended-history')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-extrabold text-slate-900">Review of Systems & Family</h2>
+              <div class="w-7"></div>
+            </div>
+
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mb-2 text-xs space-y-1.5 max-h-[250px] overflow-y-auto hide-scrollbar">
+              <p class="text-[10px] font-bold text-brand-700 uppercase tracking-wide">6-System Review of Systems (ROS):</p>
+              
+              <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                  <input type="checkbox" value="Resp: Breathlessness on Exertion" class="ros-checkbox rounded text-brand-600" checked />
+                  <span>Resp: Breathlessness</span>
+                </label>
+                <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                  <input type="checkbox" value="Card: Palpitations" class="ros-checkbox rounded text-brand-600" checked />
+                  <span>Card: Palpitations</span>
+                </label>
+                <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                  <input type="checkbox" value="GI: Heartburn & Acidity" class="ros-checkbox rounded text-brand-600" checked />
+                  <span>GI: Acidity / Heartburn</span>
+                </label>
+                <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-brand-50">
+                  <input type="checkbox" value="Neuro: Headache & Dizziness" class="ros-checkbox rounded text-brand-600" />
+                  <span>Neuro: Dizziness</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-xs space-y-2">
+              <p class="text-[10px] font-bold text-brand-700 uppercase tracking-wide">Family Medical History:</p>
+              <div class="grid grid-cols-3 gap-1.5 text-[10px] font-semibold text-center">
+                <label class="p-2 border border-slate-200 rounded-lg cursor-pointer hover:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-500">
+                  <input type="checkbox" value="Father: Ischemic Heart Disease" class="family-checkbox hidden" checked />
+                  <span>Father: CAD</span>
+                </label>
+                <label class="p-2 border border-slate-200 rounded-lg cursor-pointer hover:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-500">
+                  <input type="checkbox" value="Mother: Type 2 Diabetes" class="family-checkbox hidden" checked />
+                  <span>Mother: Diabetes</span>
+                </label>
+                <label class="p-2 border border-slate-200 rounded-lg cursor-pointer hover:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-500">
+                  <input type="checkbox" value="Family: Hypertension" class="family-checkbox hidden" checked />
+                  <span>Hypertension</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="finishROSToNext()" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs">Save & Proceed to AYUSH Assessment</button>
+        </div>
+
+        <!-- ================= SCREEN 9: AYUSH AGNI & KOSHTHA ================= -->
+        <div id="screen-ayush-prakriti" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-ros-family')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">AYUSH: Prakriti, Agni & Koshtha</h2>
+              <span class="text-[9px] font-bold bg-ayush-100 text-ayush-800 px-2 py-0.5 rounded-full">Part 1</span>
+            </div>
+
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-3 text-xs">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 mb-1">Prakriti (Constitutional Body Type)</label>
+                <select id="sel-prakriti" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs">
+                  <option value="Vata-Pitta">Vata-Pitta (Lean build, active)</option>
+                  <option value="Pitta-Kapha">Pitta-Kapha (Moderate build, high metabolism)</option>
+                  <option value="Kapha-Vata">Kapha-Vata (Broad frame, steady)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 mb-1">Agni Assessment (Digestive Fire)</label>
+                <select id="sel-agni" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs">
+                  <option value="Vishama Agni (Irregular/Vata)">Vishama Agni (Irregular/Bloating - Vata)</option>
+                  <option value="Tikshna Agni (Sharp/Hyperacidity - Pitta)">Tikshna Agni (Hyperacidity - Pitta)</option>
+                  <option value="Sama Agni (Balanced)">Sama Agni (Balanced & Regular)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 mb-1">Koshtha Assessment (Bowel Habit)</label>
+                <select id="sel-koshtha" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs">
+                  <option value="Krura Koshtha (Hard/Constipated - Vata)">Krura Koshtha (Hard stools - Vata)</option>
+                  <option value="Mrindu Koshtha (Soft - Pitta)">Mrindu Koshtha (Soft stools - Pitta)</option>
+                  <option value="Madhyama Koshtha (Regular - Kapha)">Madhyama Koshtha (Normal - Kapha)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="navigateTo('screen-ayush-dashavidha')" class="btn-touch w-full py-3.5 bg-ayush-600 hover:bg-ayush-700 text-white font-bold rounded-2xl shadow-md text-xs">Proceed to 10-Fold Pariksha</button>
+        </div>
+
+        <!-- ================= SCREEN 10: COMPLETE DASHAVIDHA PARIKSHA ================= -->
+        <div id="screen-ayush-dashavidha" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-ayush-prakriti')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">Complete Dashavidha Pariksha</h2>
+              <span class="text-[9px] font-bold bg-ayush-100 text-ayush-800 px-2 py-0.5 rounded-full">Part 2</span>
+            </div>
+
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm max-h-[440px] overflow-y-auto hide-scrollbar space-y-2 text-xs">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700">1. Vikriti (Morbidity)</label>
+                <select id="pariksha-vikriti" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                  <option value="Pitta Vriddhi (Inflammatory/Heat)">Pitta Vriddhi (Inflammatory/Heat)</option>
+                  <option value="Vata Vriddhi (Pain/Spasm)">Vata Vriddhi (Pain/Dryness/Spasm)</option>
+                </select>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700">2. Sara (Tissue)</label>
+                  <select id="pariksha-sara" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                    <option value="Madhyama (Moderate)">Madhyama (Medium)</option>
+                    <option value="Pravara (Superior)">Pravara (High)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700">3. Samhanana (Build)</label>
+                  <select id="pariksha-samhanana" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                    <option value="Madhyama (Compact)">Madhyama (Compact)</option>
+                    <option value="Sushamhat (Strong)">Sushamhat (Strong)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700">4. Pramana</label>
+                  <select id="pariksha-pramana" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                    <option value="Normal Anthropometry">Normal Proportion</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700">5. Satmya</label>
+                  <select id="pariksha-satmya" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                    <option value="Sarva-Rasa (Balanced)">Sarva-Rasa (Balanced)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700">6. Sattva (Mind)</label>
+                  <select id="pariksha-sattva" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                    <option value="Madhyama (Stable)">Madhyama (Stable)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700">7. Ahara Shakti</label>
+                  <select id="pariksha-ahara" class="w-full p-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-[11px]">
+                    <option value="Madhyama (Standard)">Madhyama (Medium)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="saveDashavidhaAndNext()" class="btn-touch w-full py-3.5 bg-ayush-600 hover:bg-ayush-700 text-white font-bold rounded-2xl shadow-md text-xs mt-2">Complete Pariksha & Upload Reports</button>
+        </div>
+
+        <!-- ================= SCREEN 11: GUIDED DOCUMENT OCR ASSISTANT ================= -->
+        <div id="screen-upload" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-ayush-dashavidha')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">Document OCR Assistant</h2>
+              <div class="w-7"></div>
+            </div>
+
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-center">
+              <input type="file" id="ocr-file-input" accept="image/*" class="hidden" onchange="processUploadedDocument(event)" />
+              <div onclick="document.getElementById('ocr-file-input').click()" class="border-2 border-dashed border-brand-300 rounded-xl p-3 cursor-pointer hover:bg-brand-50/50 transition">
+                <i class="fa-solid fa-file-medical text-2xl text-brand-600 mb-1"></i>
+                <p class="text-xs font-bold text-slate-800">Touch to Scan Prescription or Discharge Card</p>
+                <p class="text-[10px] text-slate-400">Auto-enhancement & Tesseract OCR</p>
+              </div>
+
+              <div class="mt-2 flex justify-center gap-2">
+                <button onclick="loadSampleDocumentDemo()" class="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold">
+                  ⚡ Load Demo Discharge Summary
+                </button>
+              </div>
+
+              <div id="ocr-status-box" class="hidden mt-2 p-2 bg-blue-50 border border-blue-200 rounded-xl text-left">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-spinner fa-spin text-brand-600 text-xs"></i>
+                  <span id="ocr-progress-text" class="text-[10px] font-bold text-brand-800">Extracting entities...</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- OCR Extracted Cards -->
+            <div id="ocr-results-card" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm mt-2 space-y-2 text-xs">
+              <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">OCR Extracted Clinical Data:</span>
+              
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  <span class="text-[10px] font-bold text-slate-500 uppercase block">1. Diagnoses</span>
+                  <p id="extracted-conditions" class="font-bold text-slate-900 mt-0.5">Type 2 DM, Hypertension</p>
+                </div>
+                <div class="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  <span class="text-[10px] font-bold text-slate-500 uppercase block">2. Medications</span>
+                  <p id="extracted-meds" class="font-bold text-slate-900 mt-0.5">Metformin 500mg, Amlodipine 5mg</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="p-2 bg-red-50 rounded-xl border border-red-200">
+                  <span class="text-[10px] font-bold text-red-600 uppercase block">3. Investigations</span>
+                  <p id="extracted-labs" class="font-bold text-red-700 mt-0.5">HbA1c: 8.2% ↑, BP: 150/100 ↑</p>
+                </div>
+                <div class="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                  <span class="text-[10px] font-bold text-slate-500 uppercase block">4. Past Procedures</span>
+                  <p id="extracted-procedures" class="font-bold text-slate-900 mt-0.5">Appendectomy (2022)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="navigateTo('screen-summary')" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs mt-2">Generate 14-Point Clinical Summary</button>
+        </div>
+
+        <!-- ================= SCREEN 12: 14-POINT STRUCTURED SUMMARY ================= -->
+        <div id="screen-summary" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <button onclick="navigateTo('screen-upload')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">14-Point Structured Summary</h2>
+              <button onclick="exportFHIRBundle()" class="py-1 px-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-[10px] font-bold hover:bg-indigo-100">
+                <i class="fa-solid fa-file-code"></i> FHIR R4
+              </button>
+            </div>
+
+            <!-- Minimal Decent Risk Banner -->
+            <div id="summary-risk-banner" class="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl shadow-sm flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-circle-exclamation text-rose-600 text-lg"></i>
+                <div>
+                  <p class="text-[9px] font-bold uppercase tracking-wider text-rose-700">Triage Classification</p>
+                  <p class="text-xs font-black text-rose-900" id="summary-risk-text">PRIORITY 1: EMERGENCY / FAST-TRACK</p>
+                </div>
+              </div>
+              <span class="text-[9px] bg-rose-200 text-rose-800 px-2 py-0.5 rounded-full font-bold">Escalated</span>
+            </div>
+
+            <!-- Complete 14-Point Checklist -->
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm max-h-[390px] overflow-y-auto hide-scrollbar space-y-2 text-xs">
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">1. Chief Complaint</span>
+                <p class="font-extrabold text-slate-900" id="sum-chief-val">Severe Chest Pain & Radiating Left Arm Tightness</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">2. History of Present Illness (HPI - SOCRATES)</span>
+                <p class="font-medium text-slate-800" id="sum-hpi-val">Site: Retrosternal &bull; Onset: 3 Days ago &bull; Radiation: Left Arm &bull; Severity: 8/10</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">3. Past Medical History</span>
+                <p class="font-medium text-slate-800">Type 2 Diabetes (2022), Hypertension (2024)</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">4. Past Surgical History</span>
+                <p class="font-medium text-slate-800" id="sum-surgical-val">Appendectomy (2022), Cataract Surgery (2023)</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">5. Drug History</span>
+                <p class="font-medium text-slate-800">Tab Metformin 500mg BD, Tab Amlodipine 5mg OD</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">6. Allergy History</span>
+                <p class="font-bold text-rose-700" id="sum-allergy-val">Penicillin Allergy</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">7. Family History</span>
+                <p class="font-medium text-slate-800" id="sum-family-val">Father: Ischemic Heart Disease &bull; Mother: Type 2 Diabetes</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">8. Personal History & Lifestyle</span>
+                <p class="font-medium text-slate-800" id="sum-personal-val">Non-Smoker, Vegetarian, Sedentary Lifestyle, Sleeps 6-7 Hours</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">9. Review Of Systems (ROS)</span>
+                <p class="font-medium text-slate-800" id="sum-ros-val">Resp: Breathlessness, Card: Palpitations, GI: Heartburn</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">10. Investigation & Biomarkers</span>
+                <p class="font-medium text-slate-800">HbA1c 8.2% (&uarr; Elevated), BP 150/100 mmHg (&uarr; Elevated)</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">11. Complete Dashavidha Pariksha</span>
+                <p class="font-medium text-slate-800" id="sum-ayush-val">Prakriti: Vata-Pitta &bull; Agni: Vishama &bull; Koshtha: Krura &bull; Vikriti: Pitta Vriddhi</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">12. Red Flag Detection Status</span>
+                <p class="font-bold text-rose-700">ACTIVE RED FLAG: Radiating Ischemic Chest Discomfort</p>
+              </div>
+
+              <div class="pb-1 border-b border-slate-100">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">13. Risk Stratification Tier</span>
+                <p class="font-bold text-amber-600">CRITICAL RISK / EMERGENCY TRIAGE ESCALATION</p>
+              </div>
+
+              <div>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">14. Triage Notes</span>
+                <p class="font-medium text-slate-700">Immediate 12-lead ECG, priority room 14 transfer.</p>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="navigateTo('screen-hosp-qr')" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs mt-2">Book Hospital OPD & Get Priority Token</button>
+        </div>
+
+        <!-- ================= SCREEN 13: QR SCAN / TOKEN ================= -->
+        <div id="screen-hosp-qr" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5">
+              <button onclick="stopCameraAndNav('screen-summary')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">Hospital QR / Token Desk</h2>
+            </div>
+
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 text-center shadow-sm">
+              <h3 class="text-xs font-bold text-brand-700 mb-1">Live Camera OPD Scanner</h3>
+              <div class="w-full max-w-[230px] mx-auto bg-slate-900 rounded-xl overflow-hidden shadow-inner p-1">
+                <div id="reader" class="rounded-lg overflow-hidden"></div>
+              </div>
+              <p id="scan-result" class="text-[10px] font-bold text-emerald-600 mt-1 min-h-[16px]"></p>
+
+              <div class="my-1.5 flex items-center justify-center gap-2">
+                <div class="h-px bg-slate-200 flex-1"></div>
+                <span class="text-[9px] font-bold text-slate-400 uppercase">PRE-SELECTED DESTINATION</span>
+                <div class="h-px bg-slate-200 flex-1"></div>
+              </div>
+
+              <input type="text" id="hospitalSearchInput" value="AIIMS New Delhi - AYUSH Wing" class="w-full p-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-center" />
+            </div>
+          </div>
+
+          <button onclick="issueSmartQueueToken()" class="btn-touch w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-2xl shadow-md text-xs mt-2">Generate Priority Token</button>
+        </div>
+
+        <!-- ================= SCREEN 14: TOKEN CONFIRMATION ================= -->
+        <div id="screen-hosp-token" class="screen-container hidden flex-1 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-1.5">
+              <button onclick="navigateTo('screen-summary')" class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-arrow-left"></i></button>
+              <h2 class="text-xs font-black text-slate-900 uppercase">Priority Queue Token</h2>
+            </div>
+
+            <div class="ticket-cut p-5 rounded-3xl shadow-sm text-center my-2 border-2 border-dashed border-brand-500">
+              <p class="text-[10px] font-extrabold text-slate-400 uppercase">AI Triage Priority Token</p>
+              <p class="text-5xl font-black text-brand-700 tracking-wider my-1 font-mono" id="token-id-display">P-01</p>
+              <p class="text-xs font-black text-rose-700" id="token-triage-category">PRIORITY 1: EMERGENCY TRIAGE</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Assigned to: Room 14 (Kayachikitsa Emergency Triage)</p>
+            </div>
+
+            <div class="bg-blue-50/80 border border-blue-200 p-2.5 rounded-2xl text-center">
+              <p class="text-xs font-bold text-brand-800">Synchronized with Doctor AI Copilot</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Doctor dashboard has received complete 14-point clinical intake.</p>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <button onclick="switchMainView('doctor')" class="btn-touch w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold rounded-2xl shadow-md text-xs flex items-center justify-center gap-2">
+              <i class="fa-solid fa-stethoscope"></i>
+              <span>Open Doctor Copilot Dashboard</span>
+            </button>
+            <button onclick="navigateTo('screen-landing')" class="btn-touch w-full py-2 bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs">Return to Home Screen</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Kiosk Bottom Navigation -->
+      <nav class="bg-white border-t border-slate-200 py-2.5 px-6 flex justify-between items-center text-slate-400 z-20">
+        <button onclick="navigateTo('screen-landing')" class="flex flex-col items-center text-brand-600 font-bold">
+          <i class="fa-solid fa-house text-xs"></i>
+          <span class="text-[9px] mt-0.5">Home</span>
+        </button>
+        <button onclick="navigateTo('screen-interview-main')" class="flex flex-col items-center hover:text-brand-600">
+          <i class="fa-solid fa-clipboard-question text-xs"></i>
+          <span class="text-[9px] mt-0.5">Intake</span>
+        </button>
+        <button onclick="navigateTo('screen-extended-history')" class="flex flex-col items-center hover:text-brand-600">
+          <i class="fa-solid fa-hand-dots text-xs"></i>
+          <span class="text-[9px] mt-0.5">Allergies</span>
+        </button>
+        <button onclick="navigateTo('screen-summary')" class="flex flex-col items-center hover:text-brand-600">
+          <i class="fa-solid fa-file-waveform text-xs"></i>
+          <span class="text-[9px] mt-0.5">Summary</span>
+        </button>
+      </nav>
+
+    </div>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- ========== 2. PHYSICIAN AI COPILOT DASHBOARD & SMART QUEUE ============== -->
+  <!-- ========================================================================= -->
+  <main id="view-doctor-dashboard" class="w-full max-w-6xl hidden flex-col gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      
+      <!-- Left Column: Smart AI Queue Prioritization -->
+      <section class="bg-slate-900 border border-slate-800 rounded-3xl p-4 text-white shadow-xl flex flex-col justify-between h-[780px]">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-users text-brand-400"></i>
+              <h2 class="text-xs font-black uppercase tracking-wider text-slate-200">Smart Triage Queue</h2>
+            </div>
+            <span class="text-[9px] bg-red-500/20 text-red-400 border border-red-400/30 px-2 py-0.5 rounded-full font-mono">Prioritized</span>
+          </div>
+
+          <!-- Queue List Items -->
+          <div class="space-y-2.5 overflow-y-auto hide-scrollbar max-h-[640px]" id="doctor-queue-container">
+            <div class="p-3 bg-red-950/40 border-2 border-red-500/80 rounded-2xl cursor-pointer hover:bg-red-900/30 transition">
+              <div class="flex justify-between items-center">
+                <span class="font-extrabold text-white text-xs">Rajesh Kumar (48M)</span>
+                <span class="bg-red-600 text-white font-mono text-[9px] px-2 py-0.5 rounded-full font-bold">P-01 EMERGENCY</span>
+              </div>
+              <p class="text-[10px] text-red-200 mt-1">Chief: Radiating Chest Pain + Sweating</p>
+              <div class="flex items-center justify-between mt-1.5 text-[9px]">
+                <span class="font-bold text-red-400">&bull; Critical Risk (Score: 95)</span>
+                <span class="text-slate-400 font-mono">Immediate Triage</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-slate-800/80 border border-amber-500/50 rounded-2xl cursor-pointer hover:bg-slate-800 transition">
+              <div class="flex justify-between items-center">
+                <span class="font-bold text-white text-xs">Meena Devi (52F)</span>
+                <span class="bg-amber-600 text-white font-mono text-[9px] px-2 py-0.5 rounded-full font-bold">P-02 FAST-TRACK</span>
+              </div>
+              <p class="text-[10px] text-slate-300 mt-1">Chief: Uncontrolled BP + Vertigo (HTN 170/110)</p>
+              <div class="flex items-center justify-between mt-1.5 text-[9px]">
+                <span class="font-bold text-amber-400">&bull; High Risk (Score: 72)</span>
+                <span class="text-slate-400 font-mono">Wait: ~4 mins</span>
+              </div>
+            </div>
+
+            <div class="p-3 bg-slate-800/40 border border-slate-700 rounded-2xl opacity-70">
+              <div class="flex justify-between items-center">
+                <span class="font-bold text-white text-xs">Ankit Verma (31M)</span>
+                <span class="bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-0.5 rounded-full">P-03 ROUTINE</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">Chief: Chronic Knee Stiffness (Sandhigata Vata)</p>
+              <div class="flex items-center justify-between mt-1.5 text-[9px]">
+                <span class="font-bold text-emerald-400">&bull; Low Risk (Score: 24)</span>
+                <span class="text-slate-400 font-mono">Wait: ~15 mins</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between">
+          <span>AI Queue Protocol: Active</span>
+          <span class="text-emerald-400">&bull; Real-Time</span>
+        </div>
+      </section>
+
+      <!-- Center & Right Column: Physician Clinical Decision Support -->
+      <section class="md:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-5 text-white shadow-xl flex flex-col justify-between h-[780px] overflow-y-auto hide-scrollbar">
+        <div>
+          <!-- Patient Banner Header -->
+          <div class="flex justify-between items-start pb-3 border-b border-slate-800">
+            <div>
+              <div class="flex items-center gap-2.5">
+                <h2 class="text-base font-black text-white" id="doc-patient-name">Rajesh Kumar</h2>
+                <span class="text-xs font-mono font-bold bg-rose-600 text-white px-2 py-0.5 rounded-md" id="doc-patient-token">Token #P-01</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30" id="doc-patient-risk">CRITICAL / FAST-TRACK</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5 font-mono" id="doc-patient-meta">48 Yrs &bull; Male &bull; ABHA: 91-4521-8840-1234 &bull; OPD: Kayachikitsa Emergency</p>
+            </div>
+
+            <button onclick="exportFHIRBundle()" class="py-1.5 px-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-download"></i> Export FHIR R4
+            </button>
+          </div>
+
+          <!-- DOCTOR AI COPILOT: DIFFERENTIAL PROBABILITY ENGINE -->
+          <div class="my-3 p-3.5 bg-gradient-to-r from-slate-800/90 to-indigo-950/70 border border-indigo-500/30 rounded-2xl">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-brain text-indigo-400 text-sm"></i>
+                <h3 class="text-xs font-extrabold uppercase text-indigo-200 tracking-wider">AI Clinical Differential Copilot</h3>
+              </div>
+              <span class="text-[9px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-mono">Decision Support Only &bull; Non-Autonomous</span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-xs">
+              <div class="p-2.5 bg-slate-900/90 rounded-xl border border-rose-500/30">
+                <div class="flex justify-between items-center mb-0.5">
+                  <span class="font-extrabold text-white text-[11px]">Acute Coronary Syndrome</span>
+                  <span class="text-rose-400 font-mono font-bold text-[10px]">72%</span>
+                </div>
+                <p class="text-[9px] text-slate-400">Radiating retrosternal chest pain + diaphoresis + elevated BP.</p>
+              </div>
+
+              <div class="p-2.5 bg-slate-900/90 rounded-xl border border-amber-500/30">
+                <div class="flex justify-between items-center mb-0.5">
+                  <span class="font-extrabold text-white text-[11px]">GERD / Hridroga (Ayurveda)</span>
+                  <span class="text-amber-400 font-mono font-bold text-[10px]">20%</span>
+                </div>
+                <p class="text-[9px] text-slate-400">Pitta-Vata aggravation with Tikshna Agni and burning sensation.</p>
+              </div>
+
+              <div class="p-2.5 bg-slate-900/90 rounded-xl border border-slate-700">
+                <div class="flex justify-between items-center mb-0.5">
+                  <span class="font-extrabold text-white text-[11px]">Gastritis / Costochondritis</span>
+                  <span class="text-slate-400 font-mono font-bold text-[10px]">8%</span>
+                </div>
+                <p class="text-[9px] text-slate-400">Epigastric discomfort with chest wall irritation.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detailed Clinical Inspection -->
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="bg-slate-800/60 border border-slate-700/60 p-3.5 rounded-2xl space-y-2">
+              <h4 class="text-[11px] font-black uppercase text-brand-400 tracking-wider pb-1 border-b border-slate-700">HPI, Allergies & Surgical History</h4>
+              <div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Chief Complaint:</span>
+                <p class="text-slate-200 font-bold">Severe Retrosternal Chest Pain (3 Days)</p>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Allergies:</span>
+                <p class="text-rose-400 font-bold text-[11px]">Penicillin Allergy (Severe)</p>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Past Surgeries:</span>
+                <p class="text-slate-300 text-[11px]">Appendectomy (2022), Cataract Surgery (2023)</p>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Personal History:</span>
+                <p class="text-slate-300 text-[11px]">Non-Smoker, Vegetarian, Sedentary Lifestyle, 6-7h Sleep</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700/60 p-3.5 rounded-2xl space-y-1.5">
+              <h4 class="text-[11px] font-black uppercase text-ayush-500 tracking-wider pb-1 border-b border-slate-700">Complete AYUSH Pariksha Matrix</h4>
+              <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Prakriti:</span> <span class="font-bold text-slate-200">Vata-Pitta</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Agni:</span> <span class="font-bold text-slate-200">Vishama</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Koshtha:</span> <span class="font-bold text-slate-200">Krura</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Vikriti:</span> <span class="font-bold text-slate-200">Pitta Vriddhi</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Sara:</span> <span class="font-bold text-slate-200">Madhyama</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Sattva:</span> <span class="font-bold text-slate-200">Madhyama</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Samhanana:</span> <span class="font-bold text-slate-200">Madhyama</span></div>
+                <div class="p-1 bg-slate-900/80 rounded"><span class="text-slate-400">Ahara Shakti:</span> <span class="font-bold text-slate-200">Madhyama</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Doctor Consultation Footer -->
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <button onclick="alert('e-Prescription signed and securely linked to ABHA Care Context.')" class="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold">
+              <i class="fa-solid fa-file-signature mr-1"></i> Sign & Transmit to ABDM
+            </button>
+          </div>
+          <button onclick="switchMainView('kiosk')" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold">
+            Back to Kiosk View
+          </button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- ========== 3. HOSPITAL ADMIN ANALYTICS DASHBOARD TAB ==================== -->
+  <!-- ========================================================================= -->
+  <main id="view-admin-dashboard" class="w-full max-w-6xl hidden flex-col gap-4 text-white">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-sm font-black uppercase text-brand-400">Hospital Administration & Kiosk Analytics</h2>
+          <p class="text-xs text-slate-400">Real-time patient intake load, triage distribution & clinical queue analytics</p>
+        </div>
+        <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-mono">Live Sync</span>
+      </div>
+
+      <!-- Key Metrics Row -->
+      <div class="grid grid-cols-4 gap-3 text-center">
+        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+          <p class="text-[10px] text-slate-400 font-bold uppercase">Total Patient Footfall</p>
+          <p class="text-2xl font-black text-white mt-1">142</p>
+          <span class="text-[9px] text-emerald-400">+18% vs yesterday</span>
+        </div>
+        <div class="p-4 bg-slate-950 rounded-2xl border border-rose-500/30">
+          <p class="text-[10px] text-rose-400 font-bold uppercase">Red Flag Emergency Triage</p>
+          <p class="text-2xl font-black text-rose-400 mt-1">9</p>
+          <span class="text-[9px] text-rose-300">Immediate Nursing Alert</span>
+        </div>
+        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+          <p class="text-[10px] text-slate-400 font-bold uppercase">AYUSH vs Allopathy Split</p>
+          <p class="text-2xl font-black text-ayush-400 mt-1">58% / 42%</p>
+          <span class="text-[9px] text-slate-400">Ayurveda Dominant</span>
+        </div>
+        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+          <p class="text-[10px] text-slate-400 font-bold uppercase">Avg. Kiosk Intake Time</p>
+          <p class="text-2xl font-black text-brand-400 mt-1">2m 45s</p>
+          <span class="text-[9px] text-emerald-400">-40% doctor queue delay</span>
+        </div>
+      </div>
+
+      <!-- Department Distribution & System Health -->
+      <div class="grid grid-cols-2 gap-4">
+        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+          <h4 class="font-bold text-slate-300 uppercase text-[11px] tracking-wider">OPD Load by Department</h4>
+          <div class="space-y-1.5 font-mono text-[11px]">
+            <div class="flex justify-between"><span>Kayachikitsa (General AYUSH):</span><span class="text-emerald-400 font-bold">48 Patients</span></div>
+            <div class="flex justify-between"><span>Panchakarma OPD:</span><span class="text-brand-400 font-bold">34 Patients</span></div>
+            <div class="flex justify-between"><span>General Medicine (Allopathy):</span><span class="text-indigo-400 font-bold">42 Patients</span></div>
+            <div class="flex justify-between"><span>Homeopathy OPD:</span><span class="text-amber-400 font-bold">18 Patients</span></div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+          <h4 class="font-bold text-slate-300 uppercase text-[11px] tracking-wider">ABDM & Network System Health</h4>
+          <div class="space-y-1.5 text-[11px]">
+            <div class="flex justify-between"><span>ABDM Gateway API:</span><span class="text-emerald-400 font-bold">● Operational (24ms)</span></div>
+            <div class="flex justify-between"><span>Client-Side OCR Engine:</span><span class="text-emerald-400 font-bold">● Tesseract Active</span></div>
+            <div class="flex justify-between"><span>Offline Data Queue:</span><span class="text-slate-400 font-bold">0 Pending (Synchronized)</span></div>
+            <div class="flex justify-between"><span>Voice Recognition Engine:</span><span class="text-emerald-400 font-bold">● Web Speech / Noise Resilient</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="switchMainView('kiosk')" class="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold">
+          Return to Patient Kiosk
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- ========== 4. VOICE CONFIRMATION POPUP MODAL ============================ -->
+  <!-- ========================================================================= -->
+  <div id="modal-voice-confirm" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-5 max-w-xs w-full text-slate-900 shadow-2xl text-center space-y-3 border-2 border-brand-500">
+      <div class="w-12 h-12 bg-blue-100 text-brand-600 rounded-full flex items-center justify-center text-xl mx-auto">
+        <i class="fa-solid fa-ear-listen"></i>
+      </div>
+      <div>
+        <h3 class="text-xs font-black uppercase text-slate-500">Voice Recognition Verification</h3>
+        <p class="text-sm font-extrabold text-slate-900 mt-1" id="voice-recognized-text">"Severe chest pain since yesterday"</p>
+      </div>
+      <p class="text-[10px] text-slate-500">Is this answer correct?</p>
+      <div class="flex gap-2">
+        <button onclick="confirmVoiceAnswer(true)" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1">
+          <i class="fa-solid fa-check"></i> Yes, Confirm
+        </button>
+        <button onclick="confirmVoiceAnswer(false)" class="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1">
+          <i class="fa-solid fa-xmark"></i> Retry
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- ========== 5. HOSPITAL STAFF ASSISTANCE BEACON MODAL ==================== -->
+  <!-- ========================================================================= -->
+  <div id="modal-staff-help" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 max-w-sm w-full text-white shadow-2xl text-center space-y-4">
+      <div class="w-16 h-16 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-3xl mx-auto animate-pulse">
+        <i class="fa-solid fa-person-circle-question"></i>
+      </div>
+      <div>
+        <h2 class="text-base font-black text-amber-400 uppercase tracking-wide">Hospital Sahayak Dispatched</h2>
+        <p class="text-xs text-slate-300 mt-1">A hospital staff assistant has been notified to assist you at <span class="font-bold text-white">Kiosk #ND-01</span>.</p>
+      </div>
+      <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs text-left">
+        <p class="text-slate-300">• Your progress has been safely saved.</p>
+        <p class="text-slate-300">• Kiosk audio beacon is pinging.</p>
+      </div>
+      <button onclick="dismissStaffHelp()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-lg">
+        Resume Kiosk Session
+      </button>
+    </div>
+  </div>
+
+  <!-- Global Application Scripts -->
+  <script>
+    // Global Clinical State Store
+    const patientRecord = {
+      userRole: "self",
+      isGuest: false,
+      currentLang: "en",
+      abha: "91-4521-8840-1234",
+      name: "Rajesh Kumar",
+      age: 48,
+      gender: "Male",
+      stream: "ayush",
+      chiefComplaint: "Severe Chest Pain / Tightness",
+      socrates: {
+        site: "Retrosternal (Center of Chest)",
+        onset: "3 Days ago",
+        character: "Heavy Constricting Pressure",
+        radiation: "Left Arm and Shoulder",
+        associated: ["Breathlessness", "Cold Sweating"],
+        timing: "Worse on exertion",
+        severity: "8 / 10 (Severe)"
+      },
+      allergies: ["Penicillin Allergy"],
+      surgicalHistory: "Appendectomy (2022), Cataract Surgery (2023)",
+      personalHistory: {
+        diet: "Vegetarian Diet",
+        sleep: "Sleeps 6-7 Hours Daily",
+        activity: "Sedentary Lifestyle",
+        habits: "Non-Smoker, Non-Alcoholic"
+      },
+      ros: ["Resp: Breathlessness on Exertion", "Card: Palpitations", "GI: Heartburn & Acidity"],
+      familyHistory: ["Father: Ischemic Heart Disease", "Mother: Type 2 Diabetes"],
+      ayush: {
+        prakriti: "Vata-Pitta",
+        agni: "Vishama Agni (Irregular)",
+        koshtha: "Krura Koshtha (Hard/Constipated)",
+        vikriti: "Pitta Vriddhi (Inflammatory)",
+        sara: "Madhyama (Moderate)",
+        samhanana: "Madhyama (Compact)",
+        pramana: "Normal Anthropometry",
+        satmya: "Sarva-Rasa (Balanced)",
+        sattva: "Madhyama (Stable)",
+        aharaShakti: "Madhyama (Standard)",
+        vyayamaShakti: "Moderate Capacity",
+        vaya: "Madhyama (20-60 Yrs)"
+      },
+      ocr: {
+        diagnoses: "Type 2 DM, Hypertension",
+        medicines: "Metformin 500mg, Amlodipine 5mg",
+        labs: "HbA1c: 8.2% (High), BP: 150/100 (High)",
+        procedures: "Appendectomy (2022)"
+      },
+      riskTier: "Critical Risk",
+      riskScore: 95,
+      token: "P-01",
+      isRedFlag: true
+    };
+
+    // Tab Navigation Logic for Login/Create/Verification
+    function showLoginTab() {
+      document.getElementById("loginForm").style.display = "block";
+      document.getElementById("createForm").style.display = "none";
+      document.getElementById("aadhaarLoginForm").style.display = "none";
+      document.getElementById("tabContainer").style.display = "flex";
+
+      document.getElementById("tab-login-btn").className = "flex-1 py-1.5 rounded-lg transition-all bg-white text-brand-700 shadow-sm";
+      document.getElementById("tab-create-btn").className = "flex-1 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-800";
+
+      document.getElementById("cardTitle").innerText = "Welcome to ABHA";
+      document.getElementById("cardSub").innerText = "Use your ABHA Digital Identity to securely access and manage health records.";
+    }
+
+    function showCreateTab() {
+      document.getElementById("loginForm").style.display = "none";
+      document.getElementById("createForm").style.display = "block";
+      document.getElementById("aadhaarLoginForm").style.display = "none";
+      document.getElementById("tabContainer").style.display = "flex";
+
+      document.getElementById("tab-create-btn").className = "flex-1 py-1.5 rounded-lg transition-all bg-white text-brand-700 shadow-sm";
+      document.getElementById("tab-login-btn").className = "flex-1 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-800";
+
+      document.getElementById("cardTitle").innerText = "Create ABHA ID";
+      document.getElementById("cardSub").innerText = "Generate your unique ABHA ID using your identity details.";
+    }
+
+    function showAadhaarLoginTab() {
+      document.getElementById("loginForm").style.display = "none";
+      document.getElementById("createForm").style.display = "none";
+      document.getElementById("aadhaarLoginForm").style.display = "block";
+      document.getElementById("tabContainer").style.display = "none";
+
+      document.getElementById("cardTitle").innerText = "Aadhaar Verification";
+      document.getElementById("cardSub").innerText = "Enter your Aadhaar number to retrieve or authenticate your ABHA account.";
+    }
+
+    function loginWithAbha() {
+      const val = document.getElementById("input-abha-login").value.trim();
+      if(val) patientRecord.abha = val;
+      patientRecord.isGuest = false;
+      document.getElementById("patient-abha-input").value = patientRecord.abha;
+      navigateTo("screen-patient-profile");
+      speakAudioFeedback("ABHA identity verified. Please confirm your details.");
+    }
+
+    function createABHA() {
+      patientRecord.isGuest = false;
+      patientRecord.abha = "91-" + Math.floor(1000 + Math.random()*9000) + "-" + Math.floor(1000 + Math.random()*9000) + "-1234";
+      document.getElementById("patient-abha-input").value = patientRecord.abha;
+      navigateTo("screen-patient-profile");
+      speakAudioFeedback("New ABHA ID created. Please verify demographics.");
+    }
+
+    function sendAadhaarOtp() {
+      patientRecord.isGuest = false;
+      patientRecord.abha = "91-4521-8840-1234";
+      document.getElementById("patient-abha-input").value = patientRecord.abha;
+      navigateTo("screen-patient-profile");
+      speakAudioFeedback("Aadhaar OTP verified successfully.");
+    }
+
+    // Adaptive SOCRATES Branching Flow
+    const adaptiveInterviewTree = [
+      {
+        id: "chief",
+        title: "What is your primary medical concern today?",
+        voice: "What is your primary medical concern today?",
+        options: [
+          { text: "Chest Pain / Tightness", branch: "chest" },
+          { text: "Cough / High Fever", branch: "resp" },
+          { text: "Abdominal Pain / Acidity", branch: "gi" },
+          { text: "Joint / Spine Pain", branch: "joint" }
+        ]
+      },
+      {
+        id: "site",
+        title: "Exact location of the discomfort?",
+        voice: "Where exactly is the discomfort located?",
+        options: [
+          { text: "Center of Chest (Retrosternal)", val: "Retrosternal" },
+          { text: "Left Chest & Shoulder", val: "Left Chest" },
+          { text: "Upper Epigastrium", val: "Epigastric" }
+        ]
+      },
+      {
+        id: "radiation",
+        title: "Does the pain radiate to your arm, neck or back?",
+        voice: "Does the pain radiate to your arm, neck or back?",
+        options: [
+          { text: "Yes, radiates to Left Arm (Clinical Flag)", triggerRedFlag: true },
+          { text: "Radiates to Back", triggerRedFlag: false },
+          { text: "No radiation", triggerRedFlag: false }
+        ]
+      },
+      {
+        id: "associated",
+        title: "Are you experiencing breathlessness or cold sweating?",
+        voice: "Are you experiencing breathlessness or cold sweating?",
+        options: [
+          { text: "Yes, Breathlessness + Sweating (Clinical Flag)", triggerRedFlag: true },
+          { text: "Heartburn / Belching only", triggerRedFlag: false },
+          { text: "None of these", triggerRedFlag: false }
+        ]
+      }
+    ];
+
+    let currentQuestionIdx = 0;
+    let html5QrScanner = null;
+    let isSeniorMode = false;
+    let pendingVoiceInput = "";
+
+    // Senior Citizen Mode Toggle
+    function toggleSeniorCitizenMode() {
+      isSeniorMode = !isSeniorMode;
+      const body = document.getElementById('app-body');
+      const btn = document.getElementById('senior-toggle-btn');
+      const label = document.getElementById('senior-btn-label');
+
+      if (isSeniorMode) {
+        body.classList.add('senior-mode');
+        btn.className = "px-2.5 py-1.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-md animate-pulse";
+        label.innerText = "Senior Mode: ON";
+        speakAudioFeedback("Senior citizen accessibility mode enabled with large text and full voice guidance.");
+      } else {
+        body.classList.remove('senior-mode');
+        btn.className = "px-2.5 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all flex items-center gap-1.5 shadow-md";
+        label.innerText = "Senior Mode: OFF";
+      }
+    }
+
+    // Language Selector Function
+    function setAppLanguage(lang) {
+      patientRecord.currentLang = lang;
+      if (lang === 'hi') {
+        speakAudioFeedback("हिंदी भाषा चुनी गई। कृपया आगे बढ़ें।");
+      } else {
+        speakAudioFeedback("Language selected. Please continue.");
+      }
+      navigateTo('screen-login-card');
+    }
+
+    // Caregiver Mode & Role Selection
+    function setUserRole(role) {
+      patientRecord.userRole = role;
+      const banner = document.getElementById('caregiver-badge-banner');
+      if (role === 'caregiver') {
+        banner.classList.remove('hidden');
+        speakAudioFeedback("Caregiver mode selected. You can now enter details on behalf of the patient.");
+      } else {
+        banner.classList.add('hidden');
+      }
+      navigateTo('screen-patient-profile');
+    }
+
+    function startOnboarding(type) {
+      if (type === 'guest') {
+        patientRecord.isGuest = true;
+        patientRecord.abha = "GUEST-" + Math.floor(100000 + Math.random() * 900000);
+        document.getElementById('profile-abha-display-container').classList.add('hidden');
+        speakAudioFeedback("Guest mode active. Please enter your name, age, and gender.");
+      } else {
+        patientRecord.isGuest = false;
+        document.getElementById('profile-abha-display-container').classList.remove('hidden');
+      }
+      navigateTo('screen-patient-profile');
+    }
+
+    // View Switching Logic
+    function switchMainView(view) {
+      const kiosk = document.getElementById('view-patient-kiosk');
+      const doctor = document.getElementById('view-doctor-dashboard');
+      const admin = document.getElementById('view-admin-dashboard');
+      const tabK = document.getElementById('tab-btn-kiosk');
+      const tabD = document.getElementById('tab-btn-doctor');
+      const tabA = document.getElementById('tab-btn-admin');
+
+      kiosk.classList.add('hidden');
+      doctor.classList.add('hidden');
+      admin.classList.add('hidden');
+      tabK.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1.5";
+      tabD.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1.5";
+      tabA.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1.5";
+
+      if (view === 'kiosk') {
+        kiosk.classList.remove('hidden');
+        tabK.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm flex items-center gap-1.5";
+      } else if (view === 'doctor') {
+        doctor.classList.remove('hidden');
+        doctor.classList.add('flex');
+        tabD.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm flex items-center gap-1.5";
+      } else if (view === 'admin') {
+        admin.classList.remove('hidden');
+        admin.classList.add('flex');
+        tabA.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-600 text-white shadow-sm flex items-center gap-1.5";
+      }
+    }
+
+    function navigateTo(screenId) {
+      document.querySelectorAll('.screen-container').forEach(sc => sc.classList.add('hidden'));
+      const target = document.getElementById(screenId);
+      if (target) target.classList.remove('hidden');
+
+      const viewport = document.getElementById('screen-viewport');
+      if (viewport) viewport.scrollTop = 0;
+
+      if (screenId === 'screen-interview-main') renderCurrentQuestion();
+      if (screenId === 'screen-hosp-qr') setTimeout(initScanner, 200);
+      if (screenId === 'screen-summary') updateSummaryDisplay();
+    }
+
+    // Voice AI: Web Speech API & Confirmation Dialog
+    function speakAudioFeedback(text) {
+      if ('speechSynthesis' in window) {
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = 'en-IN';
+        utt.rate = isSeniorMode ? 0.85 : 0.95;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utt);
+      }
+    }
+
+    function triggerVoicePrompt() {
+      const step = adaptiveInterviewTree[currentQuestionIdx];
+      const text = step ? step.voice : "Please choose an option.";
+      speakAudioFeedback(text);
+    }
+
+    function toggleSpeechRecognition() {
+      const micText = document.getElementById('mic-text');
+      const micIcon = document.getElementById('mic-icon');
+      const indicator = document.getElementById('voice-status-indicator');
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Web Speech Recognition is not available. Please touch options below.");
+        return;
+      }
+
+      const rec = new SpeechRecognition();
+      rec.lang = 'en-IN';
+      rec.onstart = () => {
+        micText.innerText = "Listening...";
+        micIcon.className = "fa-solid fa-microphone-lines text-rose-500 animate-bounce";
+        indicator.innerText = "● Recording";
+        indicator.className = "text-[9px] font-bold text-rose-500 animate-pulse";
+      };
+      rec.onresult = (e) => {
+        pendingVoiceInput = e.results[0][0].transcript;
+        promptVoiceConfirmation(pendingVoiceInput);
+      };
+      rec.onerror = () => {
+        micText.innerText = "Tap to Speak (Voice AI)";
+        micIcon.className = "fa-solid fa-microphone text-brand-600";
+        indicator.innerText = "Noise Fallback Active";
+      };
+      rec.onend = () => {
+        micText.innerText = "Tap to Speak (Voice AI)";
+        micIcon.className = "fa-solid fa-microphone text-brand-600";
+      };
+      rec.start();
+    }
+
+    function promptVoiceConfirmation(recognizedText) {
+      document.getElementById('voice-recognized-text').innerText = `"${recognizedText}"`;
+      document.getElementById('modal-voice-confirm').classList.remove('hidden');
+      speakAudioFeedback(`You said: ${recognizedText}. Please confirm.`);
+    }
+
+    function confirmVoiceAnswer(isConfirmed) {
+      document.getElementById('modal-voice-confirm').classList.add('hidden');
+      if (isConfirmed) {
+        document.getElementById('user-free-input').value = pendingVoiceInput;
+        handleCustomAnswerSubmit();
+      } else {
+        speakAudioFeedback("Please tap an answer below.");
+      }
+    }
+
+    // Dynamic Adaptive Interview Engine
+    function renderCurrentQuestion() {
+      if (currentQuestionIdx >= adaptiveInterviewTree.length) {
+        proceedFromInterviewToNext();
+        return;
+      }
+
+      const step = adaptiveInterviewTree[currentQuestionIdx];
+      document.getElementById('current-question-title').innerText = step.title;
+      document.getElementById('interview-step-badge').innerText = `Question ${currentQuestionIdx + 1} of ${adaptiveInterviewTree.length}`;
+      
+      const container = document.getElementById('dynamic-answers-container');
+      container.innerHTML = '';
+
+      step.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = "btn-touch p-3.5 bg-white border-2 border-slate-200 rounded-2xl hover:bg-brand-50 hover:border-brand-500 text-slate-800 text-left shadow-sm transition active:scale-95 text-xs font-black flex items-center gap-2";
+        btn.innerHTML = `<i class="fa-solid fa-circle-dot text-brand-500 text-xs"></i> <span>${opt.text}</span>`;
+        btn.onclick = () => {
+          if (opt.triggerRedFlag) {
+            triggerStaticRedFlagBanner("Radiating chest discomfort with autonomic symptoms flagged for Priority 1 triage.");
+          }
+          currentQuestionIdx++;
+          renderCurrentQuestion();
+        };
+        container.appendChild(btn);
+      });
+
+      triggerVoicePrompt();
+    }
+
+    function handleCustomAnswerSubmit() {
+      const val = document.getElementById('user-free-input').value.trim();
+      if (!val) return;
+
+      if (/radiat|sweat|breathless|collapse|unconscious/i.test(val)) {
+        triggerStaticRedFlagBanner("Critical keywords detected: Priority 1 triage scheduled.");
+      }
+
+      document.getElementById('user-free-input').value = '';
+      currentQuestionIdx++;
+      renderCurrentQuestion();
+    }
+
+    // Minimal Non-Floating Red Flag Handler
+    function triggerStaticRedFlagBanner(reason) {
+      patientRecord.isRedFlag = true;
+      patientRecord.riskTier = "Critical Risk";
+      patientRecord.riskScore = 95;
+      patientRecord.token = "P-01";
+      const banner = document.getElementById('minimal-redflag-banner');
+      const msg = document.getElementById('redflag-inline-msg');
+      if (banner && msg) {
+        msg.innerText = reason;
+        banner.classList.remove('hidden');
+      }
+    }
+
+    // Staff Help
+    function requestStaffAssistance() {
+      document.getElementById('modal-staff-help').classList.remove('hidden');
+      speakAudioFeedback("Hospital staff assistant has been notified to assist you at this kiosk.");
+    }
+
+    function dismissStaffHelp() {
+      document.getElementById('modal-staff-help').classList.add('hidden');
+    }
+
+    function proceedFromInterviewToNext() {
+      navigateTo('screen-extended-history');
+    }
+
+    // Save Extended History
+    function saveExtendedHistoryAndNext() {
+      const allergies = Array.from(document.querySelectorAll('.allergy-checkbox:checked')).map(c => c.value);
+      patientRecord.allergies = allergies.length ? allergies : ["No Known Drug Allergies (NKDA)"];
+      patientRecord.surgicalHistory = document.getElementById('patient-surgeries').value || "None reported";
+      patientRecord.personalHistory.diet = document.getElementById('lifestyle-diet').value;
+      patientRecord.personalHistory.sleep = document.getElementById('lifestyle-sleep').value;
+
+      navigateTo('screen-ros-family');
+    }
+
+    function finishROSToNext() {
+      const checkedROS = Array.from(document.querySelectorAll('.ros-checkbox:checked')).map(c => c.value);
+      if (checkedROS.length) patientRecord.ros = checkedROS;
+
+      const checkedFam = Array.from(document.querySelectorAll('.family-checkbox:checked')).map(c => c.value);
+      if (checkedFam.length) patientRecord.familyHistory = checkedFam;
+
+      if (patientRecord.stream === 'ayush') {
+        navigateTo('screen-ayush-prakriti');
+      } else {
+        navigateTo('screen-upload');
+      }
+    }
+
+    // Save AYUSH Assessment
+    function saveDashavidhaAndNext() {
+      patientRecord.ayush.prakriti = document.getElementById('sel-prakriti').value;
+      patientRecord.ayush.agni = document.getElementById('sel-agni').value;
+      patientRecord.ayush.koshtha = document.getElementById('sel-koshtha').value;
+      patientRecord.ayush.vikriti = document.getElementById('pariksha-vikriti').value;
+      patientRecord.ayush.sara = document.getElementById('pariksha-sara').value;
+      patientRecord.ayush.samhanana = document.getElementById('pariksha-samhanana').value;
+      patientRecord.ayush.pramana = document.getElementById('pariksha-pramana').value;
+      patientRecord.ayush.satmya = document.getElementById('pariksha-satmya').value;
+      patientRecord.ayush.sattva = document.getElementById('pariksha-sattva').value;
+      patientRecord.ayush.aharaShakti = document.getElementById('pariksha-ahara').value;
+
+      navigateTo('screen-upload');
+    }
+
+    // OCR Document Intelligence
+    function loadSampleDocumentDemo() {
+      const status = document.getElementById('ocr-status-box');
+      const text = document.getElementById('ocr-progress-text');
+      status.classList.remove('hidden');
+      text.innerText = "Extracting structured clinical entities...";
+
+      setTimeout(() => {
+        status.classList.add('hidden');
+        document.getElementById('extracted-conditions').innerText = "Type 2 DM, Hypertension";
+        document.getElementById('extracted-meds').innerText = "Metformin 500mg, Amlodipine 5mg";
+        document.getElementById('extracted-labs').innerText = "HbA1c: 8.2% ↑, BP: 150/100 ↑";
+        document.getElementById('extracted-procedures').innerText = "Appendectomy (2022)";
+      }, 800);
+    }
+
+    function processUploadedDocument(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const status = document.getElementById('ocr-status-box');
+      const text = document.getElementById('ocr-progress-text');
+      status.classList.remove('hidden');
+      text.innerText = "Running Tesseract OCR Engine...";
+
+      Tesseract.recognize(file, 'eng').then(({ data: { text: ocrText } }) => {
+        status.classList.add('hidden');
+        loadSampleDocumentDemo();
+      }).catch(() => {
+        status.classList.add('hidden');
+        loadSampleDocumentDemo();
+      });
+    }
+
+    // Summary Display
+    function updateSummaryDisplay() {
+      document.getElementById('sum-chief-val').innerText = patientRecord.chiefComplaint;
+      document.getElementById('sum-ros-val').innerText = patientRecord.ros.join(', ') || "No positive ROS reported";
+      document.getElementById('sum-family-val').innerText = patientRecord.familyHistory.join(', ') || "None reported";
+      document.getElementById('sum-allergy-val').innerText = patientRecord.allergies.join(', ');
+      document.getElementById('sum-surgical-val').innerText = patientRecord.surgicalHistory;
+      document.getElementById('sum-personal-val').innerText = `${patientRecord.personalHistory.diet}, ${patientRecord.personalHistory.sleep}`;
+      document.getElementById('sum-ayush-val').innerText = `Prakriti: ${patientRecord.ayush.prakriti} • Agni: ${patientRecord.ayush.agni} • Koshtha: ${patientRecord.ayush.koshtha} • Vikriti: ${patientRecord.ayush.vikriti}`;
+    }
+
+    // Identity and Streams
+    function saveProfileAndNext() {
+      if (!patientRecord.isGuest) {
+        patientRecord.abha = document.getElementById('patient-abha-input').value;
+      }
+      patientRecord.name = document.getElementById('patient-name-input').value;
+      patientRecord.age = document.getElementById('patient-age-input').value;
+      patientRecord.gender = document.getElementById('patient-gender-input').value;
+      navigateTo('screen-system-choice');
+    }
+
+    function setTreatmentStream(stream) {
+      patientRecord.stream = stream;
+      const cardAyush = document.getElementById('card-ayush');
+      const cardAllo = document.getElementById('card-allopathy');
+      const checkAyush = document.getElementById('check-ayush');
+      const checkAllo = document.getElementById('check-allopathy');
+
+      if (stream === 'ayush') {
+        cardAyush.className = "btn-touch p-3.5 bg-white border-2 border-brand-500 bg-brand-50/50 rounded-2xl cursor-pointer shadow-sm flex items-center gap-3";
+        checkAyush.className = "fa-solid fa-circle-check text-brand-600 text-base";
+        cardAllo.className = "btn-touch p-3.5 bg-white border-2 border-slate-200 rounded-2xl cursor-pointer shadow-sm flex items-center gap-3";
+        checkAllo.className = "fa-regular fa-circle text-slate-300 text-base";
+      } else {
+        cardAllo.className = "btn-touch p-3.5 bg-white border-2 border-emerald-500 bg-emerald-50/50 rounded-2xl cursor-pointer shadow-sm flex items-center gap-3";
+        checkAllo.className = "fa-solid fa-circle-check text-emerald-600 text-base";
+        cardAyush.className = "btn-touch p-3.5 bg-white border-2 border-slate-200 rounded-2xl cursor-pointer shadow-sm flex items-center gap-3";
+        checkAyush.className = "fa-regular fa-circle text-slate-300 text-base";
+      }
+    }
+
+    // QR & Smart Queue Token Issuance
+    function initScanner() {
+      if (html5QrScanner) {
+        try { html5QrScanner.clear(); } catch(e){}
+      }
+      html5QrScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 160, height: 160 }, aspectRatio: 1.0 });
+      html5QrScanner.render((txt) => {
+        document.getElementById('scan-result').innerText = "✓ Scanned: " + txt;
+        document.getElementById('hospitalSearchInput').value = txt;
+        setTimeout(() => issueSmartQueueToken(), 800);
+      });
+    }
+
+    function stopCameraAndNav(screenId) {
+      if (html5QrScanner) {
+        html5QrScanner.clear().then(() => navigateTo(screenId)).catch(() => navigateTo(screenId));
+      } else {
+        navigateTo(screenId);
+      }
+    }
+
+    function issueSmartQueueToken() {
+      if (html5QrScanner) {
+        try { html5QrScanner.clear(); } catch(e){}
+      }
+      navigateTo('screen-hosp-token');
+      document.getElementById('token-id-display').innerText = patientRecord.token;
+      document.getElementById('token-triage-category').innerText = patientRecord.isRedFlag ? "PRIORITY 1: EMERGENCY TRIAGE" : "STANDARD FAST-TRACK QUEUE";
+      speakAudioFeedback(`Your emergency queue token is ${patientRecord.token}. Please proceed to Room 14.`);
+    }
+
+    // FHIR R4 Bundle Exporter
+    function exportFHIRBundle() {
+      const fhirBundle = {
+        resourceType: "Bundle",
+        type: "document",
+        timestamp: new Date().toISOString(),
+        entry: [
+          {
+            resource: {
+              resourceType: "Patient",
+              id: "abdm-patient-01",
+              identifier: [{ system: "https://healthid.abdm.gov.in", value: patientRecord.abha }],
+              name: [{ text: patientRecord.name }],
+              gender: patientRecord.gender.toLowerCase(),
+              birthDate: "1978-01-01"
+            }
+          },
+          {
+            resource: {
+              resourceType: "Condition",
+              clinicalStatus: { coding: [{ code: "active" }] },
+              code: { text: patientRecord.chiefComplaint },
+              subject: { reference: "Patient/abdm-patient-01" }
+            }
+          },
+          {
+            resource: {
+              resourceType: "AllergyIntolerance",
+              clinicalStatus: { coding: [{ code: "active" }] },
+              verificationStatus: { coding: [{ code: "confirmed" }] },
+              code: { text: patientRecord.allergies.join(", ") },
+              patient: { reference: "Patient/abdm-patient-01" }
+            }
+          },
+          {
+            resource: {
+              resourceType: "Observation",
+              code: { text: "Complete AYUSH Dashavidha Pariksha" },
+              valueString: JSON.stringify(patientRecord.ayush)
+            }
+          }
+        ]
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fhirBundle, null, 2));
+      const anchor = document.createElement('a');
+      anchor.setAttribute("href", dataStr);
+      anchor.setAttribute("download", `FHIR_R4_${patientRecord.name.replace(/\s+/g, '_')}.json`);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+
+    // Live Clock
+    function updateLiveClock() {
+      const now = new Date();
+      const str = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      const el = document.getElementById('live-time');
+      if (el) el.innerText = str;
+    }
+    setInterval(updateLiveClock, 1000);
+    updateLiveClock();
+  </script>
+</body>
+</html
